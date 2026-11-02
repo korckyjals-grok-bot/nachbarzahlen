@@ -59,7 +59,7 @@ td.ok{background:#c9f2d6!important}td.no{background:#ffd3cc!important}.cv{displa
 <section id="practice" class="card hidden">
 <h2>✏️ Practicar</h2>
 <p>Completa la tabla. Recuerda: de <b>menor a mayor</b> ➡️</p>
-<div class="stats"><span>✅ Tablas correctas: <span id="pScore">0</span></span><span>🔥 Racha: <span id="pStreak">0</span></span></div>
+<div class="stats"><span>✅ Tablas correctas: <span id="pScore">0</span></span><span style="opacity:.4">|</span><span>🔥 Racha: <span id="pStreak">0</span></span></div>
 <div class="tw"><table class="nb" id="pT"></table></div>
 <div class="fb" id="pFb"></div>
 <div class="row"><button type="button" class="btn green" id="pCheck" onclick="checkPractice()">✔️ Comprobar</button><button type="button" class="btn blue" id="pNext" onclick="goNextPractice()">➡️ Siguiente</button><button type="button" class="btn gray" onclick="show('home')">🏠 Inicio</button></div>
@@ -123,7 +123,7 @@ function renderTopics(){const c=getChecks();topics.innerHTML=TOPICS.map(t=>`<lab
 const b=+localStorage.getItem(BK)||0;best.textContent=b?`🏆 Mejor puntaje en el Desafío: ${b}`:"🏆 Aún no tienes récord. ¡Juega el Desafío!";
 homeChecks.textContent=c.length?"✔ Dominado: "+TOPICS.filter(t=>c.includes(t[0])).map(t=>t[1]).join(", "):"Gana ✔ con 13 o más puntos y cero errores en el Desafío.";}
 function sel(){const s=[...topics.querySelectorAll("input:checked")].map(i=>i.value);window._sel=s;return s}
-function randZahl(){let s=sel();if(!s.length)s=["2c","3c","4c"];const t=TOPICS.find(x=>x[0]===s[Math.floor(Math.random()*s.length)]);
+function randZahl(){let s=sel();if(!s.length)s=["2c","3c","4c"];const pick=s[Math.floor(Math.random()*s.length)];const t=TOPICS.find(x=>x[0]===pick)||TOPICS[0];
 let n=t[2]+Math.floor(Math.random()*(t[3]-t[2]+1));const r=Math.random();
 if(r<.15&&t[0]!=="2c")n=Math.max(t[2],Math.round(n/100)*100);else if(r<.35)n=Math.round(n/10)*10;
 n=Math.min(Math.max(n,t[2]),t[3]);if(t[0]==="2c"&&n<20)n=20;return n}
@@ -145,34 +145,39 @@ else note+=`Ojo: VZ no es ${n-10} y NH no es ${n+100}; buscamos los múltiplos q
 demoNote.innerHTML=note}
 demo(8237);
 // Practicar
-let pN,pScoreV=0,pStreakV=0,pDone=false,pBusy=false;
-function startPractice(){if(!sel().length){alert("Elige al menos un grupo de números.");return}show("practice");newPractice()}
+let pN,pScoreV=0,pStreakV=0,pDone=false,pAwarded=false,pLastNext=0;
+function startPractice(){if(!sel().length){alert("Elige al menos un grupo de números.");return}pScoreV=0;pStreakV=0;pScore.textContent=0;pStreak.textContent=0;pN=undefined;show("practice");newPractice()}
 function newPractice(){
-  let n,guard=0;do{n=randZahl();guard++}while(n===pN&&guard<30);
-  pN=n;pDone=false;pBusy=false;pFb.textContent="";pFb.className="fb";
+  // Reiniciar estado y botones ANTES de cualquier trabajo que pueda fallar
+  pDone=false;pAwarded=false;pFb.textContent="";pFb.className="fb";
   pCheck.disabled=false;pCheck.style.display="";
-  const next=document.getElementById("pNext");if(next){next.className="btn blue";next.textContent="➡️ Siguiente"}
+  const next=document.getElementById("pNext");if(next){next.className="btn blue";next.textContent="➡️ Siguiente";next.blur()}
+  let n,guard=0;do{n=randZahl();guard++}while(n===pN&&guard<30);
+  pN=n;
   pT.innerHTML=head()+"<tr>"+COLS.map(k=>k==="Zahl"?`<td class="z">${pN}</td>`:`<td id="c_${k}"><input type="number" inputmode="numeric" aria-label="${k}" id="i_${k}"></td>`).join("")+"</tr>";
   setTimeout(()=>{const i=document.getElementById("i_VH");if(i)i.focus()},50);
 }
-function goNextPractice(){if(pBusy)return;pBusy=true;newPractice()}
-function checkPractice(){if(pDone||pBusy)return;const r=neighbors(pN);let first=null,ok=0;
-COLS.filter(k=>k!=="Zahl").forEach(k=>{const td=document.getElementById("c_"+k),inp=document.getElementById("i_"+k),v=inp.value.trim();
+function goNextPractice(){const t=Date.now();if(t-pLastNext<400)return;pLastNext=t;
+  try{newPractice()}catch(err){console.error(err);try{pDone=false;pCheck.disabled=false}catch(e){}}
+}
+function checkPractice(){if(pDone)return;const r=neighbors(pN);let first=null,ok=0;
+const inputs=[...pT.querySelectorAll("input")],empty=inputs.find(i=>i.value.trim()==="");
+if(empty){pFb.className="fb bad";pFb.textContent="Completa las 6 casillas antes de comprobar.";empty.focus();return}
+pDone=true;pCheck.disabled=true;COLS.filter(k=>k!=="Zahl").forEach(k=>{const td=document.getElementById("c_"+k),inp=document.getElementById("i_"+k),v=inp.value.trim();
 td.querySelector(".cv")?.remove();
 if(v!==""&&+v===r[k]){td.className="ok";ok++}else{td.className="no";td.insertAdjacentHTML("beforeend",`<span class="cv">${r[k]}</span>`);if(!first)first=k}});
-pDone=true;pCheck.disabled=true;
-if(!first){pScoreV++;pStreakV++;pFb.className="fb good";pFb.textContent=`🎉 ¡Excelente, ${NM()}! Todo correcto.`}
-else{pStreakV=0;pFb.className="fb bad";pFb.innerHTML=`${ok} de 6 bien. 💡 ${explain(first,pN)}`}
+if(!first){if(!pAwarded){pAwarded=true;pScoreV++;pStreakV++}pFb.className="fb good";pFb.textContent=`🎉 ¡Excelente, ${NM()}! Todo correcto.`}
+else{pStreakV=0;pFb.className="fb bad";pFb.innerHTML=`${ok} de 6 casillas bien. 💡 ${explain(first,pN)}`}
 pScore.textContent=pScoreV;pStreak.textContent=pStreakV;
 const next=document.getElementById("pNext");if(next){next.className="btn green";next.textContent="➡️ Siguiente tabla";setTimeout(()=>next.focus(),30)}
 }
-// Enter: pasar al siguiente campo vacío; si ya están todos o ya comprobaste, avanzar/comprobar
+// Enter: siguiente campo vacío; comprobar solo con todo lleno; tras comprobar, siguiente número
 pT.addEventListener("keydown",e=>{
   if(e.key!=="Enter")return;
   e.preventDefault();
   if(pDone){goNextPractice();return}
-  const inputs=[...pT.querySelectorAll("input")];
-  const empty=inputs.find(i=>i.value.trim()==="");
+  const inputs=[...pT.querySelectorAll("input")],cur=inputs.indexOf(e.target);
+  const empty=inputs.slice(cur+1).find(i=>i.value.trim()==="")||inputs.find(i=>i.value.trim()==="");
   if(empty){empty.focus();return}
   checkPractice();
 });
